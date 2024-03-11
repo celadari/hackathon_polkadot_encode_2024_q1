@@ -1,0 +1,36 @@
+[package]
+name = "oh_my_chess"
+version = "0.1.0"
+authors = ["Charles LADARI"]
+edition = "2021"
+
+[dependencies]
+ink = { version = "4", default-features = false }
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+scale = { package = "parity-scale-codec", version = "3.1", default-features = false, features = ["derive"] }
+scale-info = { version = "2.1", default-features = false, features = ["derive"] }
+#mongodb = { version = "2.8.1", default-features = false, features = ["async-std"] }
+serde-json-core = { version = "0.4" }
+
+pink-extension = { version = "0.5.1", default-features = false }
+hex = { version = "0.4", default-features = false }
+heapless = { version = "0.7", features = ["serde"] }
+
+[dev-dependencies]
+pink-extension-runtime = { version = "0.5.1", default-features = false }
+
+[lib]
+name = "oh_my_chess"
+path = "src/lib.rs"
+
+[features]
+default = ["std"]
+std = [
+    "ink/std",
+    "scale/std",
+    "scale-info/std",
+    "pink-extension/std",
+    "serde-json-core/std",
+#    "mongodb/async-std"
+]
+ink-as-dependency = []

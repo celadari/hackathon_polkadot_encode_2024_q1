@@ -1,0 +1,9 @@
+node_modules
+.idea
+contracts/**/target/*
+logs
+stacks
+artifacts
+contracts.json
+typings
+.devphase
