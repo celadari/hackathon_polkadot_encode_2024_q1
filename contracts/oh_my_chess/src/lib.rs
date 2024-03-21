@@ -13,7 +13,7 @@ mod oh_my_chess {
     use serde::{Deserialize, Serialize};
     use alloc::string::String;
     use serde_json_core;
-    use crate::oh_my_chess::Error::{WrongPlayerAddressArgument, ErrorInsertingToDB, CouldNotUpdateDB, ToIsOccupiedByOneOfYourPiece, PieceSelectedIsNotYours, NoPieceBoardChessFrom, OutOfBoardChessFrom, OutOfBoardChessTo, NonValidMove, NoElementFoundInDB, ErrorFetchingFromDB, NotAuthorized, NotYourTurn, YourNotInThisGameSession};
+    use crate::oh_my_chess::Error::{ImpossibleError, AlreadyPlayingAsOpponent, ThisSessionContainsAlreadyTwoPlayers, AlreadyInThisGameSession, WrongPlayerAddressArgument, ErrorInsertingToDB, CouldNotUpdateDB, ToIsOccupiedByOneOfYourPiece, PieceSelectedIsNotYours, NoPieceBoardChessFrom, OutOfBoardChessFrom, OutOfBoardChessTo, NonValidMove, NoElementFoundInDB, ErrorFetchingFromDB, NotAuthorized, NotYourTurn, NotInThisGameSession};
     use scale_info::TypeInfo;
 
 
@@ -22,8 +22,12 @@ mod oh_my_chess {
     pub enum Error {
         NonValidMove,
         NotYourTurn,
-        YourNotInThisGameSession,
+        NotInThisGameSession,
+        AlreadyInThisGameSession,
+        ThisSessionContainsAlreadyTwoPlayers,
         NoElementFoundInDB,
+        AlreadyPlayingAsOpponent,
+        ImpossibleError,
         CouldNotUpdateDB,
         ErrorFetchingFromDB,
         ErrorInsertingToDB,
@@ -37,7 +41,6 @@ mod oh_my_chess {
     }
     pub type Result<T> = core::result::Result<T, Error>;
     pub type Option<T> = core::option::Option<T>;
-
 
     #[ink(storage)]
     pub struct OhMyChess {
@@ -59,7 +62,13 @@ mod oh_my_chess {
         }
 
         #[ink(message)]
-        pub fn start_new_game_session(&self, player_white: [u8; 32], player_black: [u8; 32]) -> Result<String> {
+        pub fn start_new_game_session(&self, player: Option<Player>, second_player_address: Option<[u8; 32]>) -> Result<String> {
+            let caller: [u8; 32] = *Self::env().caller().as_ref();
+            let player = player.unwrap_or(Player::White); // Default to White if no player specified
+            let (player_white_address_opt, player_black_address_opt): (Option<[u8; 32]>, Option<[u8; 32]>) = match player {
+                Player::White => (Some(caller), second_player_address),
+                Player::Black => (second_player_address, Some(caller)),
+            };
 
             let initial_board = [
                 [ // 1st rank (from White's perspective)
@@ -93,20 +102,82 @@ mod oh_my_chess {
                     Some(ChessCell { piece: Piece::Rook, player: Player::Black }),
                 ],
             ];
-            let game_state = GameState {
+            let game_state = GameStateLobby {
                 board: initial_board,
                 turn: Player::White, // White starts the game
-                players: PlayersAddresses {
-                    black: player_black.clone(),
-                    white: player_white.clone(),
+                players: PlayersAddressesLobby {
+                    black: player_black_address_opt,
+                    white: player_white_address_opt,
                 },
                 status: GameStatus::Ongoing,
             };
             let inserted_document_id = self.insert_game_session_to_mongodb(game_state)?;
-            self.update_players_sessions_track_in_mongodb(inserted_document_id.clone(), player_black)?;
-            self.update_players_sessions_track_in_mongodb(inserted_document_id.clone(), player_white)?;
+            if let Some(player_black_address) = player_black_address_opt {
+                self.update_players_sessions_track_in_mongodb(inserted_document_id.clone(), player_black_address)?;
+            }
+            if let Some(player_white_address) = player_white_address_opt {
+                self.update_players_sessions_track_in_mongodb(inserted_document_id.clone(), player_white_address)?;
+            }
 
             Ok(String::from(inserted_document_id.as_str()))
+        }
+
+        #[ink(message)]
+        pub fn join_session(&self, session_id: String) -> Result<()> {
+            // Attempt to fetch the game session from the database using session_id
+            let mut game_state_lobby = self.find_lobby_game_session_from_mongodb(session_id.clone())?;
+
+            // Check if the caller is already part of the game
+            let caller: [u8; 32] = *Self::env().caller().as_ref();
+            if Some(caller) == game_state_lobby.players.white || Some(caller) == game_state_lobby.players.black {
+                return Err(AlreadyInThisGameSession);
+            }
+
+            // Check for a free spot in the game and join the game
+            match (game_state_lobby.players.white, game_state_lobby.players.black) {
+                (None, Some(black)) if black == caller => {
+                    // The player is trying to join as white but is already playing as black
+                    return Err(AlreadyPlayingAsOpponent);
+                },
+                (Some(white), None) if white == caller => {
+                    // The player is trying to join as black but is already playing as white
+                    return Err(AlreadyPlayingAsOpponent);
+                },
+                (None, Some(_)) => {
+                    // There is a free spot for white, and the caller is not playing as black
+                    game_state_lobby.players.white = Some(caller);
+                },
+                (Some(_), None) => {
+                    // There is a free spot for black, and the caller is not playing as white
+                    game_state_lobby.players.black = Some(caller);
+                },
+                _ => {
+                    return Err(ThisSessionContainsAlreadyTwoPlayers);
+                }
+            }
+
+            let game_state = match (game_state_lobby.players.white, game_state_lobby.players.black) {
+                (Some(white), Some(black)) => GameState {
+                    board: game_state_lobby.board,
+                    turn: game_state_lobby.turn,
+                    players: PlayersAddresses {
+                        white,
+                        black,
+                    },
+                    status: game_state_lobby.status,
+                },
+                // If this branch is reached, then the session is in an invalid state for conversion
+                _ => return Err(ImpossibleError),
+            };
+
+            let session_id_heapless: heapless::String<32> = heapless::String::from(session_id.as_str());
+                // .map_err(|_| StringToHeaplessStringConversionError)?;
+
+            // Update the game session in the database
+            self.update_game_session_to_mongodb(game_state, session_id)?;
+            self.update_players_sessions_track_in_mongodb(session_id_heapless, caller)?;
+
+            Ok(())
         }
 
         pub fn is_admin(&self) -> bool {
@@ -222,18 +293,19 @@ mod oh_my_chess {
             let player = &game_state.turn;
             let player_address = if *player == Player::Black { game_state.players.black } else { game_state.players.white };
 
+            if caller != AccountId::from(game_state.players.black) && caller != AccountId::from(game_state.players.white) {
+                // The caller is neither black nor white player, return YourNotInThisGameSession error
+                return Err(NotInThisGameSession);
+            }
             if AccountId::from(player_address) != caller {
                 return Err(NotYourTurn);
             }
-            if caller != AccountId::from(game_state.players.black) && caller != AccountId::from(game_state.players.white) {
-                // The caller is neither black nor white player, return YourNotInThisGameSession error
-                return Err(YourNotInThisGameSession);
-            }
+
             Ok(())
         }
 
         #[ink(message)]
-        pub fn find_game_session_from_mongodb(&self, session_id: String) -> Result<GameState> {
+        pub fn find_lobby_game_session_from_mongodb(&self, session_id: String) -> Result<GameStateLobby> {
             let method = String::from("POST"); // HTTP Method for the request
             let url = format!("{}/action/findOne?_id={}", self.url, session_id);
 
@@ -264,6 +336,28 @@ mod oh_my_chess {
                 .ok_or(NoElementFoundInDB);
 
             game_state_res
+        }
+
+        pub fn find_game_session_from_mongodb(&self, session_id: String) -> Result<GameState> {
+            // This method should ideally fetch data that may have optional players
+            // But let's assume it's fetching regular GameState, and we convert to Lobby version.
+            let fetched_game_state_lobby: GameStateLobby = self.find_lobby_game_session_from_mongodb(session_id)?;
+
+            // Check if both player addresses are defined
+            let players_addresses = match (fetched_game_state_lobby.players.white, fetched_game_state_lobby.players.black) {
+                (Some(white), Some(black)) => PlayersAddresses { white, black },
+                _ => return Err(NoElementFoundInDB), // or define a more specific error for missing player addresses
+            };
+
+            // Convert to GameState, ensuring all fields are properly populated
+            let game_state = GameState {
+                board: fetched_game_state_lobby.board,
+                turn: fetched_game_state_lobby.turn,
+                players: players_addresses,
+                status: fetched_game_state_lobby.status,
+            };
+
+            Ok(game_state)
         }
 
         pub fn update_players_sessions_track_in_mongodb(&self, session_id: heapless::String<32>, player_address: [u8; 32]) -> Result<()> {
@@ -298,6 +392,56 @@ mod oh_my_chess {
             else { Err(CouldNotUpdateDB) }
         }
 
+        #[ink(message)]
+        pub fn find_players_sessions_track_in_mongodb(&self) -> Result<[Option<String>; 10]> {
+            let caller: [u8; 32] = *Self::env().caller().as_ref();
+            let method = String::from("POST");
+            let player_address_hex_string = Self::bytes_to_hex_string(caller)?;
+            let url = format!("{}/action/find?_id={}", self.url, player_address_hex_string);
+
+            let data = format!(r#"{{
+                "collection":"players_sessions_trackers",
+                "database":"hackathon",
+                "dataSource":"Cluster0",
+                "filter":{{"playerAddress": "{}"}},
+                "projection":{{"sessions": 1, "_id": 0}}
+            }}"#, player_address_hex_string).as_bytes().to_vec();
+
+            // Prepare headers
+            let headers = alloc::vec![
+                (String::from("Content-Type"), String::from("application/json")),
+                (String::from("Access-Control-Request-Headers"), String::from("*")),
+                (String::from("api-key"), self.api_key.clone()),
+            ];
+
+            let response = pink::http_req!(
+                method,
+                url,
+                data,
+                headers
+            );
+
+            if response.status_code != 200 {
+                return Err(ErrorFetchingFromDB);
+            }
+
+            let sessions_vec = serde_json_core::from_slice::<FindMongoDBTrackDocumentResult>(&response.body)
+                .map_err(|_| { ErrorFetchingFromDB })
+                .map(|(mongodb, _)| { mongodb.document })?
+                .ok_or(NoElementFoundInDB)?;
+
+            let mut sessions_array: [Option<String>; 10] = Default::default();
+            for (index, session) in sessions_vec.iter().enumerate() {
+                if index < sessions_array.len() {
+                    sessions_array[index] = Some(String::from(session.as_str())); // Fill the array up to its capacity or the number of elements in the Vec
+                } else {
+                    break; // If the Vec has more elements than the array can hold, stop filling the array
+                }
+            }
+
+            Ok(sessions_array)
+        }
+
         pub fn update_game_session_to_mongodb(&self, game_state: GameState, session_id: String) -> Result<()> {
             let method = String::from("POST"); // HTTP Method for the request
             let url = format!("{}/action/updateOne?_id={}", self.url, session_id);
@@ -330,7 +474,7 @@ mod oh_my_chess {
             else { Err(CouldNotUpdateDB) }
         }
 
-        pub fn insert_game_session_to_mongodb(&self, game_state: GameState) -> Result<heapless::String<32>> {
+        pub fn insert_game_session_to_mongodb(&self, game_state: GameStateLobby) -> Result<heapless::String<32>> {
             let method = String::from("POST"); // HTTP Method for the request
             let url = format!("{}/action/insertOne", self.url);
 
@@ -498,10 +642,10 @@ mod oh_my_chess {
                 else { Err(NonValidMove) }
             } else if is_vertical {
                 if Self::is_path_clear(&(game_state.board), chess_move, &Direction::Vertical) { Ok(()) }
-                else { Err(crate::oh_my_chess::Error::NonValidMove) }
+                else { Err(NonValidMove) }
             } else if is_diagonal {
                 if Self::is_path_clear(&(game_state.board), chess_move, &Direction::Diagonal) { Ok(()) }
-                else { Err(crate::oh_my_chess::Error::NonValidMove) }
+                else { Err(NonValidMove) }
             } else {
                 Err(NonValidMove)
             }
@@ -566,6 +710,12 @@ mod oh_my_chess {
     }
 
     #[derive(Encode, Decode, Deserialize, Serialize, Clone, Debug, PartialEq, TypeInfo)]
+    pub struct PlayersAddressesLobby {
+        black: Option<[u8; 32]>,
+        white: Option<[u8; 32]>,
+    }
+
+    #[derive(Encode, Decode, Deserialize, Serialize, Clone, Debug, PartialEq, TypeInfo)]
     pub enum GameStatus {
         Ongoing, Finished, Stalemate, Draw
     }
@@ -575,6 +725,14 @@ mod oh_my_chess {
         board: [[Option<ChessCell>; 8]; 8],
         turn: Player,
         players: PlayersAddresses,
+        status: GameStatus,
+    }
+
+    #[derive(Encode, Decode, Deserialize, Serialize, Clone, Debug, TypeInfo)]
+    pub struct GameStateLobby {
+        board: [[Option<ChessCell>; 8]; 8],
+        turn: Player,
+        players: PlayersAddressesLobby,
         status: GameStatus,
     }
 
@@ -592,7 +750,12 @@ mod oh_my_chess {
 
     #[derive(Encode, Decode, Deserialize, Clone, Debug)]
     pub struct FindMongoDBDocumentResult {
-        document: Option<GameState>
+        document: Option<GameStateLobby>
+    }
+
+    #[derive(Deserialize, Clone, Debug)]
+    pub struct FindMongoDBTrackDocumentResult {
+        document: Option<heapless::Vec<heapless::String<32>, 10>>
     }
 
     #[allow(non_snake_case)]

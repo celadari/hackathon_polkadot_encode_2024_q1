@@ -7,3 +7,4 @@ artifacts
 contracts.json
 typings
 .devphase
+.env
