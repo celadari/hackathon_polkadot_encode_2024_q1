@@ -13,7 +13,7 @@ mod oh_my_chess {
     use serde::{Deserialize, Serialize};
     use alloc::string::String;
     use serde_json_core;
-    use crate::oh_my_chess::Error::{ImpossibleError, AlreadyPlayingAsOpponent, ThisSessionContainsAlreadyTwoPlayers, AlreadyInThisGameSession, WrongPlayerAddressArgument, ErrorInsertingToDB, CouldNotUpdateDB, ToIsOccupiedByOneOfYourPiece, PieceSelectedIsNotYours, NoPieceBoardChessFrom, OutOfBoardChessFrom, OutOfBoardChessTo, NonValidMove, NoElementFoundInDB, ErrorFetchingFromDB, NotAuthorized, NotYourTurn, NotInThisGameSession};
+    use crate::oh_my_chess::Error::{SessionNeedsSecondPlayer, ImpossibleError, AlreadyPlayingAsOpponent, ThisSessionContainsAlreadyTwoPlayers, AlreadyInThisGameSession, WrongPlayerAddressArgument, ErrorInsertingToDB, CouldNotUpdateDB, ToIsOccupiedByOneOfYourPiece, PieceSelectedIsNotYours, NoPieceBoardChessFrom, OutOfBoardChessFrom, OutOfBoardChessTo, NonValidMove, NoElementFoundInDB, ErrorFetchingFromDB, NotAuthorized, NotYourTurn, NotInThisGameSession};
     use scale_info::TypeInfo;
 
 
@@ -38,6 +38,7 @@ mod oh_my_chess {
         PieceSelectedIsNotYours,
         ToIsOccupiedByOneOfYourPiece,
         WrongPlayerAddressArgument,
+        SessionNeedsSecondPlayer,
     }
     pub type Result<T> = core::result::Result<T, Error>;
     pub type Option<T> = core::option::Option<T>;
@@ -129,9 +130,12 @@ mod oh_my_chess {
 
             // Check if the caller is already part of the game
             let caller: [u8; 32] = *Self::env().caller().as_ref();
-            if Some(caller) == game_state_lobby.players.white || Some(caller) == game_state_lobby.players.black {
+            let caller_some = Some(caller);
+
+            if game_state_lobby.players.white == caller_some || game_state_lobby.players.black == caller_some {
                 return Err(AlreadyInThisGameSession);
             }
+
 
             // Check for a free spot in the game and join the game
             match (game_state_lobby.players.white, game_state_lobby.players.black) {
@@ -170,11 +174,10 @@ mod oh_my_chess {
                 _ => return Err(ImpossibleError),
             };
 
-            let session_id_heapless: heapless::String<32> = heapless::String::from(session_id.as_str());
-                // .map_err(|_| StringToHeaplessStringConversionError)?;
+            let session_id_heapless: heapless::String<32> = heapless::String::from(session_id.clone().as_str());
 
             // Update the game session in the database
-            self.update_game_session_to_mongodb(game_state, session_id)?;
+            self.update_game_session_to_mongodb(game_state, session_id.clone())?;
             self.update_players_sessions_track_in_mongodb(session_id_heapless, caller)?;
 
             Ok(())
@@ -339,14 +342,12 @@ mod oh_my_chess {
         }
 
         pub fn find_game_session_from_mongodb(&self, session_id: String) -> Result<GameState> {
-            // This method should ideally fetch data that may have optional players
-            // But let's assume it's fetching regular GameState, and we convert to Lobby version.
             let fetched_game_state_lobby: GameStateLobby = self.find_lobby_game_session_from_mongodb(session_id)?;
 
             // Check if both player addresses are defined
             let players_addresses = match (fetched_game_state_lobby.players.white, fetched_game_state_lobby.players.black) {
                 (Some(white), Some(black)) => PlayersAddresses { white, black },
-                _ => return Err(NoElementFoundInDB), // or define a more specific error for missing player addresses
+                _ => return Err(SessionNeedsSecondPlayer),
             };
 
             // Convert to GameState, ensuring all fields are properly populated
@@ -369,10 +370,10 @@ mod oh_my_chess {
                 "collection":"players_sessions_trackers",
                 "database":"hackathon",
                 "dataSource":"Cluster0",
-                "filter":{{}},
+                "filter":{{ "_id": "{}" }},
                 "update":{{"$push": {{"sessions": "{}"}} }},
                 "upsert":true
-            }}"#, session_id).as_bytes().to_vec();
+            }}"#, player_address_hex_string, session_id).as_bytes().to_vec();
 
             // Prepare headers
             let headers = alloc::vec![
@@ -388,7 +389,7 @@ mod oh_my_chess {
                 headers
             );
 
-            if response.status_code == 200 { Ok(()) }
+            if response.status_code == 200 || response.status_code == 201 { Ok(()) }
             else { Err(CouldNotUpdateDB) }
         }
 
@@ -397,13 +398,13 @@ mod oh_my_chess {
             let caller: [u8; 32] = *Self::env().caller().as_ref();
             let method = String::from("POST");
             let player_address_hex_string = Self::bytes_to_hex_string(caller)?;
-            let url = format!("{}/action/find?_id={}", self.url, player_address_hex_string);
+            let url = format!("{}/action/findOne?_id={}", self.url, player_address_hex_string);
 
             let data = format!(r#"{{
                 "collection":"players_sessions_trackers",
                 "database":"hackathon",
                 "dataSource":"Cluster0",
-                "filter":{{"playerAddress": "{}"}},
+                "filter":{{"_id": "{}"}},
                 "projection":{{"sessions": 1, "_id": 0}}
             }}"#, player_address_hex_string).as_bytes().to_vec();
 
@@ -427,11 +428,20 @@ mod oh_my_chess {
 
             let sessions_vec = serde_json_core::from_slice::<FindMongoDBTrackDocumentResult>(&response.body)
                 .map_err(|_| { ErrorFetchingFromDB })
-                .map(|(mongodb, _)| { mongodb.document })?
-                .ok_or(NoElementFoundInDB)?;
+                .map(|(mongodb, _)| { mongodb.document })?;
+
+            let sessions_vec = if let Some(vec) = sessions_vec {
+                vec
+            } else {
+                let mut sessions_array: [Option<String>; 10] = Default::default();
+                for i in 0..sessions_array.len() {
+                    sessions_array[i] = None;
+                }
+                return Ok(sessions_array);
+            };
 
             let mut sessions_array: [Option<String>; 10] = Default::default();
-            for (index, session) in sessions_vec.iter().enumerate() {
+            for (index, session) in sessions_vec.sessions.iter().enumerate() {
                 if index < sessions_array.len() {
                     sessions_array[index] = Some(String::from(session.as_str())); // Fill the array up to its capacity or the number of elements in the Vec
                 } else {
@@ -445,8 +455,7 @@ mod oh_my_chess {
         pub fn update_game_session_to_mongodb(&self, game_state: GameState, session_id: String) -> Result<()> {
             let method = String::from("POST"); // HTTP Method for the request
             let url = format!("{}/action/updateOne?_id={}", self.url, session_id);
-
-            let json_game_state: heapless::String<8192> = serde_json_core::ser::to_string(&game_state).map_err(|_| { CouldNotUpdateDB })?;
+            let json_game_state: heapless::String<4096> = serde_json_core::ser::to_string(&game_state).map_err(|_| { CouldNotUpdateDB })?;
 
             let data = format!(r#"{{
                 "collection":"game_sessions",
@@ -754,8 +763,13 @@ mod oh_my_chess {
     }
 
     #[derive(Deserialize, Clone, Debug)]
+    pub struct MongoDBSessionDocument {
+        sessions: heapless::Vec<heapless::String<32>, 10>
+    }
+
+    #[derive(Deserialize, Clone, Debug)]
     pub struct FindMongoDBTrackDocumentResult {
-        document: Option<heapless::Vec<heapless::String<32>, 10>>
+        document: Option<MongoDBSessionDocument>
     }
 
     #[allow(non_snake_case)]
