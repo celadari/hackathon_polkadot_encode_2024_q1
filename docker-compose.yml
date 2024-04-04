@@ -1,0 +1,25 @@
+version: '3'
+
+services:
+  frontend:
+    container_name: hackathon_polkadot_encode_2024_q1
+    build:
+      context: frontend/.
+      dockerfile: ./Dockerfile.dev
+    networks:
+      - hackathon-polkadot-network-encode-2024-q1
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_RPC_MAINNET_URL=wss://api.phala.network/ws
+      - NEXT_PUBLIC_RPC_TESTNET_URL=wss://poc6.phala.network/ws
+      - NEXT_PUBLIC_RPC_LOCALNET_URL=ws://localhost:9944/ws
+      - NEXT_PUBLIC_PHAT_CONTRACT_OH_MY_CHESS=${NEXT_PUBLIC_PHAT_CONTRACT_OH_MY_CHESS}
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+networks:
+  hackathon-polkadot-network-encode-2024-q1:
+    external:
+      name: hackathon_polkadot_encode_2024_q1_network

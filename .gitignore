@@ -9,3 +9,6 @@ typings
 .devphase
 */**/.env
 .env
+*/**/.next
+*/**/node_modules
+*/**/next-env.d.ts
