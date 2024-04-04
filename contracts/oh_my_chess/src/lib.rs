@@ -136,7 +136,6 @@ mod oh_my_chess {
                 return Err(AlreadyInThisGameSession);
             }
 
-
             // Check for a free spot in the game and join the game
             match (game_state_lobby.players.white, game_state_lobby.players.black) {
                 (None, Some(black)) if black == caller => {
@@ -178,6 +177,7 @@ mod oh_my_chess {
 
             // Update the game session in the database
             self.update_game_session_to_mongodb(game_state, session_id.clone())?;
+
             self.update_players_sessions_track_in_mongodb(session_id_heapless, caller)?;
 
             Ok(())
@@ -310,14 +310,15 @@ mod oh_my_chess {
         #[ink(message)]
         pub fn find_lobby_game_session_from_mongodb(&self, session_id: String) -> Result<GameStateLobby> {
             let method = String::from("POST"); // HTTP Method for the request
-            let url = format!("{}/action/findOne?_id={}", self.url, session_id);
+            let url = format!("{}/action/findOne", self.url);
 
-            let data = r#"{
+            let data = format!(r#"{{
                 "collection":"game_sessions",
                 "database":"hackathon",
                 "dataSource":"Cluster0",
-                "projection":{"_id":0,"turn":1,"status":1,"players":1,"board":1}
-            }"#.as_bytes().to_vec();
+                "filter": {{"_id": {{"$oid": "{}"}}}},
+                "projection":{{"_id":0,"turn":1,"status":1,"players":1,"board":1}}
+            }}"#, session_id).as_bytes().to_vec();
 
             // Prepare headers
             let headers = alloc::vec![
@@ -454,16 +455,17 @@ mod oh_my_chess {
 
         pub fn update_game_session_to_mongodb(&self, game_state: GameState, session_id: String) -> Result<()> {
             let method = String::from("POST"); // HTTP Method for the request
-            let url = format!("{}/action/updateOne?_id={}", self.url, session_id);
+            let url = format!("{}/action/updateOne", self.url);
+
             let json_game_state: heapless::String<4096> = serde_json_core::ser::to_string(&game_state).map_err(|_| { CouldNotUpdateDB })?;
 
             let data = format!(r#"{{
                 "collection":"game_sessions",
                 "database":"hackathon",
                 "dataSource":"Cluster0",
-                "filter":{{}},
+                "filter": {{"_id": {{"$oid": "{}"}}}},
                 "update":{{"$set": {}}}
-            }}"#, json_game_state).as_bytes().to_vec();
+            }}"#, session_id, json_game_state).as_bytes().to_vec();
 
             // Prepare headers
             let headers = alloc::vec![
