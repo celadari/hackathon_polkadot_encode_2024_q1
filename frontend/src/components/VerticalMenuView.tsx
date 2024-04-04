@@ -50,7 +50,6 @@ const VerticalMenuView = ({networkUrl, accountAddress, handleSelectedSessionUuid
         useJoinSessionMutation.mutate(joinSessionArgs, {
             onSuccess: async(): Promise<void> => {
                 await refetch();
-                console.log('-----', accountAddress?.address, joinSessionArgs.sessionId);
                 handleSelectedSessionUuid(joinSessionArgs.sessionId);
                 setJoinSessionModalOpen(false);
             },
@@ -74,7 +73,7 @@ const VerticalMenuView = ({networkUrl, accountAddress, handleSelectedSessionUuid
 
     return (
         <>
-            <VerticalMenu selectedSessionUuid={selectedSessionUuid} handleSelectedSessionUuid={handleSelectedSessionUuid} sessionUuids={data} onNewSessionClick={openNewSessionModal} onJoinSessionClick={openJoinSessionModal}/>
+            <VerticalMenu disableButtons={!accountAddress} selectedSessionUuid={selectedSessionUuid} handleSelectedSessionUuid={handleSelectedSessionUuid} sessionUuids={data} onNewSessionClick={openNewSessionModal} onJoinSessionClick={openJoinSessionModal}/>
             <CreateNewSessionModal handleCreateSession={handleCreateSession} show={isNewSessionModalOpen} closeModal={() => setNewSessionModalOpen(false)}/>
             <JoinSessionModal handleJoinSession={handleJoinSession} show={isJoinSessionModalOpen} closeModal={() => setJoinSessionModalOpen(false)} />
         </>

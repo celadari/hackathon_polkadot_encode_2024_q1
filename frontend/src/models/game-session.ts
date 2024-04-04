@@ -1,8 +1,5 @@
-import {InjectedAccount} from "@phala/sdk";
-import {encodeAddress} from '@polkadot/util-crypto'
-
-export type U8 = number; // Since TypeScript doesn't have u8, we use number and assume values are within u8 range (0-255)
-export type U8Array32 = [U8, U8, U8, U8, U8, U8, U8, U8, U8, U8, U8, U8, U8, U8, U8, U8, U8, U8, U8, U8, U8, U8, U8, U8, U8, U8, U8, U8, U8, U8, U8, U8];
+import { InjectedAccount } from "@phala/sdk";
+import { encodeAddress } from '@polkadot/util-crypto'
 
 
 export interface GameSession {
@@ -22,10 +19,7 @@ export enum Player {
     Black = 'Black',
 }
 
-export interface ChessMove {
-    from: [number, number];
-    to: [number, number];
-}
+export type ChessLocation = [number, number];
 
 export enum Piece {
     Pawn = 'Pawn',
@@ -63,7 +57,7 @@ const getFenPieceCode = (piece: Piece, player: Player): string => {
     return player === Player.White ? pieceCode : pieceCode.toLowerCase();
 };
 
-export const gameSessionToFen = (gameSession: GameSession, accountAddress: InjectedAccount): string => {
+export const gameSessionToFen = (gameSession: GameSession): string => {
     // Convert the board to FEN piece placement
     const fenRows = gameSession.board.toReversed().map(row =>
         row.map(cell =>
@@ -95,7 +89,7 @@ export const getBoardOrientation = (gameSession: GameSession, accountAddress: In
     else throw Error('Current address cannot play for this address');
 };
 
-export const isPlayerTurn = (gameSession: GameSession | undefined, accountAddress: InjectedAccount | undefined): boolean => {
+export const checkIfIsPlayerTurn = (gameSession: GameSession | undefined, accountAddress: InjectedAccount | undefined): boolean => {
     if (accountAddress && gameSession?.players.black && encodeAddress(accountAddress.address) === encodeAddress(gameSession.players.black) && gameSession.turn === Player.Black) return true;
     else if (accountAddress && gameSession?.players.white && encodeAddress(accountAddress.address) === encodeAddress(gameSession.players.white) && gameSession.turn === Player.White) return true;
     else return false;

@@ -3,7 +3,7 @@ import { Chess, Color, Square } from "chess.js";
 import { Chessboard } from "react-chessboard";
 import { CustomPieceFn, CustomPieceFnArgs } from "react-chessboard/dist/chessboard/types";
 import usePhatContractOhMyChess from "@/hooks/usePhatContractOhMyChess";
-import { GameSession, gameSessionToFen, getBoardOrientation, isPlayerTurn } from "@/models/game-session";
+import { ChessLocation, GameSession, gameSessionToFen, getBoardOrientation, checkIfIsPlayerTurn } from "@/models/game-session";
 import { InjectedAccount } from "@phala/sdk";
 
 export type PieceSymbolUppercase = 'P' | 'N' | 'B' | 'R' | 'Q' | 'K';
@@ -15,7 +15,7 @@ const boardWrapper = {
     margin: "3rem auto",
 };
 
-const chessNotationToTuple = (square: Square): [number, number] => {
+const chessNotationToTuple = (square: Square): ChessLocation => {
     // Map for columns 'a' through 'h' to 0 through 7
     const columnMap: { [key: string]: number } = {
         'a': 0, 'b': 1, 'c': 2, 'd': 3, 'e': 4, 'f': 5, 'g': 6, 'h': 7,
@@ -44,6 +44,10 @@ const OhMyChessBoard = ({networkUrl, accountAddress, sessionId}: Props): ReactNo
     const [gamePosition, setGamePosition] = useState(EMPTY_FREN);
     const [activeSquare, setActiveSquare] = useState("");
     const [boardOrientation, setBoardOrientation] = useState<'white' | 'black' | undefined>(undefined);
+    const isPlayerTurn = useMemo<boolean | undefined>(() => {
+        if (!sessionId) return undefined;
+        else return checkIfIsPlayerTurn(gameSession, accountAddress);
+    }, [sessionId, gameSession, accountAddress]);
 
     useEffect((): void => {
         if (!sessionId) {
@@ -53,52 +57,13 @@ const OhMyChessBoard = ({networkUrl, accountAddress, sessionId}: Props): ReactNo
 
     useEffect((): void => {
         if (sessionId && gameSession && accountAddress) {
-            const fen = gameSessionToFen(gameSession as GameSession, accountAddress as InjectedAccount);
+            const fen = gameSessionToFen(gameSession as GameSession);
             const orientation = getBoardOrientation(gameSession as GameSession, accountAddress as InjectedAccount);
             setBoardOrientation(orientation);
             setGamePosition(fen);
             game.load(fen);
         }
     }, [gameSession, accountAddress, sessionId]);
-
-    const onDrop = (sourceSquare: Square, targetSquare: Square, piece: Piece): boolean => {
-        try {
-            const from = chessNotationToTuple(sourceSquare);
-            const to = chessNotationToTuple(targetSquare);
-
-            console.log('--session: ', sessionId, '--turn: ', gameSession?.turn, '--address: ', accountAddress?.address);
-
-            const move = game.move({
-                from: sourceSquare,
-                to: targetSquare,
-                promotion: (piece as unknown as string)[1].toLowerCase() ?? "q",
-            });
-            game.undo();
-
-            if (move && isPlayerTurn(gameSession, accountAddress)) {
-                useMakeChessMoveMutation.mutate({sessionId: sessionId as string, chessMove: {from, to}}, {
-                    onSuccess: async() => {
-                        game.move({
-                            from: sourceSquare,
-                            to: targetSquare,
-                            promotion: (piece as unknown as string)[1].toLowerCase() ?? "q",
-                        });
-
-                        setGamePosition(game.fen());
-                    },
-                    onError: (error: Error): void => {
-                        console.error(error);
-                    }
-                });
-            }
-
-            // exit if the game is over
-            return !(game.isGameOver() || game.isDraw());
-        } catch (e) {
-            return false;
-        }
-    };
-
 
     const threeDPieces = useMemo(() => {
         const pieces: {piece: Piece, pieceHeight: number}[] = [
@@ -145,8 +110,45 @@ const OhMyChessBoard = ({networkUrl, accountAddress, sessionId}: Props): ReactNo
         return pieceComponents;
     }, []);
 
+    const onDrop = (sourceSquare: Square, targetSquare: Square, piece: Piece): boolean => {
+        try {
+            const from = chessNotationToTuple(sourceSquare);
+            const to = chessNotationToTuple(targetSquare);
+
+            const move = game.move({
+                from: sourceSquare,
+                to: targetSquare,
+                promotion: (piece as unknown as string)[1].toLowerCase() ?? "q",
+            });
+            game.undo();
+
+            if (move && isPlayerTurn) {
+                useMakeChessMoveMutation.mutate({sessionId: sessionId as string, chessMove: {from, to}}, {
+                    onSuccess: async() => {
+                        game.move({
+                            from: sourceSquare,
+                            to: targetSquare,
+                            promotion: (piece as unknown as string)[1].toLowerCase() ?? "q",
+                        });
+
+                        setGamePosition(game.fen());
+                    },
+                    onError: (error: Error): void => {
+                        console.error(error);
+                    }
+                });
+            }
+
+            // exit if the game is over
+            return !(game.isGameOver() || game.isDraw());
+        } catch (e) {
+            return false;
+        }
+    };
+
     return (
         <div style={boardWrapper}>
+            <div className="flex flex-col items-center">{isPlayerTurn === undefined ? "" : (isPlayerTurn ? "It's your turn" : "It's your opponent turn")}</div>
             <Chessboard
                 id="Styled3DBoard"
                 position={gamePosition}

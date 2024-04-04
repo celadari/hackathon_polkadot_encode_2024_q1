@@ -26,7 +26,6 @@ export const JoinSessionModal = ({
                 />
             </div>
             <button onClick={(): void => {
-                console.log('sessionId', sessionUUID);
                 handleJoinSession({sessionId: sessionUUID});
                 setSessionUUID('');
             }}>Join Session</button>

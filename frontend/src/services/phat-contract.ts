@@ -57,11 +57,9 @@ export const fetchInjectedAccounts = async({networkUrl}: {networkUrl: string}): 
 };
 
 export const instantiateOhMyChessClient = async({networkUrl, accountAddress}: InputProps): Promise<OhMyChessClient> => {
+
     const client = await getClient({ transport: new WsProvider(networkUrl) });
-
-    const accounts = await UIKeyringProvider.getAllAccountsFromProvider('Oh My Chess', 'polkadot-js');
     const provider = await UIKeyringProvider.create(client.api, 'Oh My Chess', 'polkadot-js', accountAddress);
-
     const contract = await getContract({
         client,
         contractId: process.env.NEXT_PUBLIC_PHAT_CONTRACT_OH_MY_CHESS as string,
