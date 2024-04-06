@@ -4,7 +4,7 @@ import {
     CreateNewSessionArgs,
     JoinSessionArgs,
     OhMyChessClient,
-    GetGameSessionArgs, MakeChessMoveArgs
+    MakeChessMoveArgs
 } from "@/services/phat-contract";
 import { useMutation, UseMutationResult, useQuery, useQueryClient, UseQueryResult } from "@tanstack/react-query";
 import { InjectedAccount } from "@phala/sdk";

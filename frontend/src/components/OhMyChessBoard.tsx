@@ -5,6 +5,7 @@ import { CustomPieceFn, CustomPieceFnArgs } from "react-chessboard/dist/chessboa
 import usePhatContractOhMyChess from "@/hooks/usePhatContractOhMyChess";
 import { ChessLocation, GameSession, gameSessionToFen, getBoardOrientation, checkIfIsPlayerTurn } from "@/models/game-session";
 import { InjectedAccount } from "@phala/sdk";
+import Image from "next/image";
 
 export type PieceSymbolUppercase = 'P' | 'N' | 'B' | 'R' | 'Q' | 'K';
 type Piece = `${Color}${PieceSymbolUppercase}`;
@@ -63,7 +64,7 @@ const OhMyChessBoard = ({networkUrl, accountAddress, sessionId}: Props): ReactNo
             setGamePosition(fen);
             game.load(fen);
         }
-    }, [gameSession, accountAddress, sessionId]);
+    }, [gameSession, accountAddress, sessionId, game]);
 
     const threeDPieces = useMemo(() => {
         const pieces: {piece: Piece, pieceHeight: number}[] = [
@@ -94,8 +95,8 @@ const OhMyChessBoard = ({networkUrl, accountAddress, sessionId}: Props): ReactNo
                         pointerEvents: "none",
                     }}
                 >
-                    <img
-                        src={`chess-pieces/3d-pieces/${piece}.webp`}
+                    <Image
+                        src={`/chess-pieces/3d-pieces/${piece}.webp`}
                         width={squareWidth}
                         height={pieceHeight * squareWidth}
                         style={{
@@ -148,7 +149,28 @@ const OhMyChessBoard = ({networkUrl, accountAddress, sessionId}: Props): ReactNo
 
     return (
         <div style={boardWrapper}>
-            <div className="flex flex-col items-center">{isPlayerTurn === undefined ? "" : (isPlayerTurn ? "It's your turn" : "It's your opponent turn")}</div>
+            <div className="flex flex-col items-center">
+                {boardOrientation === undefined ? null : (
+                    <div
+                        style={{
+                            fontSize: '1.5rem',
+                            fontWeight: 'bold',
+                            color: boardOrientation === 'white' ? '#f0f0f0' : '#333333',
+                        }}
+                    >
+                        You&apos;re player {boardOrientation === 'white' ? 'white ♔' : 'black ♚'}
+                    </div>
+                )}
+                <div
+                    style={{
+                        fontSize: '1.5rem',
+                        fontWeight: 'bold',
+                        color: isPlayerTurn ? '#4CAF50' : '#f44336',
+                    }}
+                >
+                    {isPlayerTurn === undefined ? null : isPlayerTurn ? 'Your turn 🎲' : "Opponent's turn ⏳"}
+                </div>
+            </div>
             <Chessboard
                 id="Styled3DBoard"
                 position={gamePosition}

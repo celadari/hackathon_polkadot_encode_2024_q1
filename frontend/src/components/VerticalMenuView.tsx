@@ -44,7 +44,7 @@ const VerticalMenuView = ({networkUrl, accountAddress, handleSelectedSessionUuid
             },
             onError: (error: Error): void => console.error(error)
         });
-    }, [useCreateNewSessionMutation]);
+    }, [useCreateNewSessionMutation, handleSelectedSessionUuid, refetch]);
 
     const handleJoinSession = useCallback((joinSessionArgs: JoinSessionArgs): void => {
         useJoinSessionMutation.mutate(joinSessionArgs, {
@@ -57,7 +57,7 @@ const VerticalMenuView = ({networkUrl, accountAddress, handleSelectedSessionUuid
                 console.error(err);
             },
         })
-    }, [useJoinSessionMutation]);
+    }, [useJoinSessionMutation, handleSelectedSessionUuid, refetch]);
 
     if (isLoading) {
         return (
