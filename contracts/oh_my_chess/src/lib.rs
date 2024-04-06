@@ -228,8 +228,8 @@ mod oh_my_chess {
             Self::check_move_validity_for_piece(&game_state, &chess_move)?;
 
             // update game_state: board, status
-            Self::update_board_from_move(&mut game_state, &chess_move)?;
             Self::update_turn_and_status(&mut game_state, &chess_move)?;
+            Self::update_board_from_move(&mut game_state, &chess_move)?;
 
             // update mongodb
             self.update_game_session_to_mongodb(game_state, session_id)
@@ -551,7 +551,7 @@ mod oh_my_chess {
             match piece {
                 Piece::Pawn => Self::check_move_validity_pawn(&game_state, &chess_move),
                 Piece::Knight => Self::check_move_validity_knight(&chess_move),
-                Piece::Bishop => Self::check_bishop_move_validity(&game_state, &chess_move),
+                Piece::Bishop => Self::check_move_validity_bishop(&game_state, &chess_move),
                 Piece::Rook => Self::check_move_validity_rook(&game_state, &chess_move),
                 Piece::Queen => Self::check_move_validity_queen(&game_state, &chess_move),
                 Piece::King => Self::check_move_validity_king(&chess_move),
@@ -603,13 +603,13 @@ mod oh_my_chess {
             if (dx == 2 && dy == 1) || (dx == 1 && dy == 2) { Ok(()) } else { Err(NonValidMove) }
         }
 
-        pub fn check_bishop_move_validity(game_state: &GameState, chess_move: &ChessMove) -> Result<()> {
+        pub fn check_move_validity_bishop(game_state: &GameState, chess_move: &ChessMove) -> Result<()> {
             // Bishop can move diagonally
             let is_diagonal = (chess_move.from.0 as i32 - chess_move.to.0 as i32).abs() == (chess_move.from.1 as i32 - chess_move.to.1 as i32).abs();
 
             if is_diagonal {
                 // Diagonal move: Ensure the path is clear
-                if Self::is_path_clear(&(game_state.board), chess_move, &Direction::Diagonal) { Ok(()) }
+                if Self::is_path_clear(&(game_state.board), chess_move) { Ok(()) }
                 else { Err(NonValidMove) }
             } else { Err(NonValidMove) }
         }
@@ -621,11 +621,11 @@ mod oh_my_chess {
 
             if is_horizontal {
                 // Horizontal move: Ensure the path is clear
-                if Self::is_path_clear(&(game_state.board), chess_move, &Direction::Horizontal) { Ok(()) }
+                if Self::is_path_clear(&(game_state.board), chess_move) { Ok(()) }
                 else { Err(NonValidMove) }
             } else if is_vertical {
                 // Vertical move: Ensure the path is clear
-                if Self::is_path_clear(&(game_state.board), chess_move, &Direction::Vertical) { Ok(()) }
+                if Self::is_path_clear(&(game_state.board), chess_move) { Ok(()) }
                 else { Err(NonValidMove) }
             } else {
                 Err(NonValidMove)
@@ -649,37 +649,30 @@ mod oh_my_chess {
             let is_diagonal = (from.0 as i32 - to.0 as i32).abs() == (from.1 as i32 - to.1 as i32).abs();
 
             if is_horizontal {
-                if Self::is_path_clear(&(game_state.board), chess_move, &Direction::Horizontal) { Ok(()) }
+                if Self::is_path_clear(&(game_state.board), chess_move) { Ok(()) }
                 else { Err(NonValidMove) }
             } else if is_vertical {
-                if Self::is_path_clear(&(game_state.board), chess_move, &Direction::Vertical) { Ok(()) }
+                if Self::is_path_clear(&(game_state.board), chess_move) { Ok(()) }
                 else { Err(NonValidMove) }
             } else if is_diagonal {
-                if Self::is_path_clear(&(game_state.board), chess_move, &Direction::Diagonal) { Ok(()) }
+                if Self::is_path_clear(&(game_state.board), chess_move) { Ok(()) }
                 else { Err(NonValidMove) }
             } else {
                 Err(NonValidMove)
             }
         }
 
-        fn is_path_clear(board: &[[Option<ChessCell>; 8]; 8], chess_move: &ChessMove, direction: &Direction) -> bool {
-            let from = chess_move.from;
-            let to = chess_move.to;
+        fn is_path_clear(board: &[[Option<ChessCell>; 8]; 8], chess_move: &ChessMove) -> bool {
+            let from = (chess_move.from.0 as i16, chess_move.from.1 as i16);
+            let to = (chess_move.to.0 as i16, chess_move.to.1 as i16);
             let (dx, dy) = (to.0 as i32 - from.0 as i32, to.1 as i32 - from.1 as i32);
-            let step_x = dx.signum() as u8;
-            let step_y = dy.signum() as u8;
-
-            // Check if movement is according to the piece's moving pattern
-            match direction {
-                Direction::Horizontal => if dy != 0 { return false; },
-                Direction::Vertical => if dx != 0 { return false; },
-                Direction::Diagonal => if dx.abs() != dy.abs() { return false; },
-            }
+            let step_x = dx.signum() as i16;
+            let step_y = dy.signum() as i16;
 
             let mut current_x = from.0;
             let mut current_y = from.1;
 
-            while (current_x, current_y) != (to.0, to.1) {
+            while (current_x, current_y) != (to.0 as i16, to.1 as i16) {
                 current_x += step_x;
                 current_y += step_y;
 
