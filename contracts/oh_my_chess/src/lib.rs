@@ -271,9 +271,8 @@ mod oh_my_chess {
                     Player::Black => GameStatus::WonByPlayerBlack,
                     Player::White => GameStatus::WonByPlayerWhite,
                 }
-            } else {
-                game_state.turn = opposing_player;
             }
+            game_state.turn = opposing_player;
             Ok(())
         }
 
@@ -612,10 +611,10 @@ mod oh_my_chess {
                         if cell_player != (*player) {
                             let threat_move = ChessMove { from: (x as u8, y as u8), to: (king_x, king_y) };
                             // Check if this opponent's piece can move to capture the king
-                            if Self::check_move_validity_for_piece(&board, &player, &threat_move).is_ok() {
+                            if Self::check_move_validity_for_piece(&board, &cell_player, &threat_move).is_ok() {
                                 // If this piece can threaten the king, check for a response
                                 if !Self::has_response_to_threat(&board, &player, (x, y))? {
-                                    return Ok(false);
+                                    return Ok(true);
                                 }
                             }
                         }
@@ -624,7 +623,7 @@ mod oh_my_chess {
             }
 
             // If we've checked all pieces and there is always response to threat, the player can escape from check
-            Ok(true)
+            Ok(false)
         }
 
         fn has_response_to_threat(board: &Board, player: &Player, threat_position: (usize, usize)) -> Result<bool> {
