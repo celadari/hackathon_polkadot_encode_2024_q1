@@ -1,6 +1,6 @@
 {
   "source": {
-    "hash": "0x0fc068f0d9a4d068abb5ae4f43a662f6552101873d047e0f2eb66670c7bb5e2e",
+    "hash": "0xca4b6dc5eb3ba7cbadedf942a6f35042807ef781fd7d801a3a838a2c7c3e9f6c",
     "language": "ink! 4.3.0",
     "compiler": "rustc 1.77.0",
     "build_info": {
@@ -517,78 +517,86 @@
             "variants": [
               {
                 "index": 0,
-                "name": "NonValidMove"
+                "name": "GameSessionIsOver"
               },
               {
                 "index": 1,
-                "name": "NotYourTurn"
+                "name": "NonValidMove"
               },
               {
                 "index": 2,
-                "name": "NotInThisGameSession"
+                "name": "NotYourTurn"
               },
               {
                 "index": 3,
-                "name": "AlreadyInThisGameSession"
+                "name": "NotInThisGameSession"
               },
               {
                 "index": 4,
-                "name": "ThisSessionContainsAlreadyTwoPlayers"
+                "name": "AlreadyInThisGameSession"
               },
               {
                 "index": 5,
-                "name": "NoElementFoundInDB"
+                "name": "ThisSessionContainsAlreadyTwoPlayers"
               },
               {
                 "index": 6,
-                "name": "AlreadyPlayingAsOpponent"
+                "name": "NoElementFoundInDB"
               },
               {
                 "index": 7,
-                "name": "ImpossibleError"
+                "name": "AlreadyPlayingAsOpponent"
               },
               {
                 "index": 8,
-                "name": "CouldNotUpdateDB"
+                "name": "ImpossibleError"
               },
               {
                 "index": 9,
-                "name": "ErrorFetchingFromDB"
+                "name": "CouldNotFindKingPiece"
               },
               {
                 "index": 10,
-                "name": "ErrorInsertingToDB"
+                "name": "CouldNotUpdateDB"
               },
               {
                 "index": 11,
-                "name": "NotAuthorized"
+                "name": "ErrorFetchingFromDB"
               },
               {
                 "index": 12,
-                "name": "OutOfBoardChessFrom"
+                "name": "ErrorInsertingToDB"
               },
               {
                 "index": 13,
-                "name": "OutOfBoardChessTo"
+                "name": "NotAuthorized"
               },
               {
                 "index": 14,
-                "name": "NoPieceBoardChessFrom"
+                "name": "OutOfBoardChessFrom"
               },
               {
                 "index": 15,
-                "name": "PieceSelectedIsNotYours"
+                "name": "OutOfBoardChessTo"
               },
               {
                 "index": 16,
-                "name": "ToIsOccupiedByOneOfYourPiece"
+                "name": "NoPieceBoardChessFrom"
               },
               {
                 "index": 17,
-                "name": "WrongPlayerAddressArgument"
+                "name": "PieceSelectedIsNotYours"
               },
               {
                 "index": 18,
+                "name": "ToIsOccupiedByOneOfYourPiece"
+              },
+              {
+                "index": 19,
+                "name": "WrongPlayerAddressArgument"
+              },
+              {
+                "index": 20,
                 "name": "SessionNeedsSecondPlayer"
               }
             ]
@@ -1160,14 +1168,18 @@
               },
               {
                 "index": 1,
-                "name": "Finished"
+                "name": "WonByPlayerBlack"
               },
               {
                 "index": 2,
-                "name": "Stalemate"
+                "name": "WonByPlayerWhite"
               },
               {
                 "index": 3,
+                "name": "Stalemate"
+              },
+              {
+                "index": 4,
                 "name": "Draw"
               }
             ]

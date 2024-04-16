@@ -1,9 +1,16 @@
-import React, { ReactNode, useEffect, useMemo, useState } from "react";
+import React, {ReactNode, useEffect, useMemo, useState} from "react";
 import { Chess, Color, Square } from "chess.js";
 import { Chessboard } from "react-chessboard";
 import { CustomPieceFn, CustomPieceFnArgs } from "react-chessboard/dist/chessboard/types";
 import usePhatContractOhMyChess from "@/hooks/usePhatContractOhMyChess";
-import { ChessLocation, GameSession, gameSessionToFen, getBoardOrientation, checkIfIsPlayerTurn } from "@/models/game-session";
+import {
+    checkIfIsPlayerTurn,
+    ChessLocation,
+    GameSession,
+    gameSessionToFen,
+    GameStatus,
+    getBoardOrientation
+} from "@/models/game-session";
 import { InjectedAccount } from "@phala/sdk";
 import Image from "next/image";
 
@@ -46,7 +53,7 @@ const OhMyChessBoard = ({networkUrl, accountAddress, sessionId}: Props): ReactNo
     const [activeSquare, setActiveSquare] = useState("");
     const [boardOrientation, setBoardOrientation] = useState<'white' | 'black' | undefined>(undefined);
     const isPlayerTurn = useMemo<boolean | undefined>(() => {
-        if (!sessionId) return undefined;
+        if (!sessionId || !gameSession?.players.black || !gameSession?.players.white) return undefined;
         else return checkIfIsPlayerTurn(gameSession, accountAddress);
     }, [sessionId, gameSession, accountAddress]);
 
@@ -64,7 +71,35 @@ const OhMyChessBoard = ({networkUrl, accountAddress, sessionId}: Props): ReactNo
             setGamePosition(fen);
             game.load(fen);
         }
+        if (!gameSession) setBoardOrientation(undefined);
     }, [gameSession, accountAddress, sessionId, game]);
+
+    const gameStatusMessage = useMemo((): string => {
+        if (!sessionId) return '';
+        if (!gameSession || !boardOrientation) return 'Waiting for game details...';
+        if (!gameSession.players.black || !gameSession.players.white) return "Waiting for other player to join";
+
+        switch (gameSession.status) {
+            case GameStatus.Ongoing:
+                return 'Game is in progress';
+            case GameStatus.WonByPlayerBlack:
+                return boardOrientation === 'black' ? 'You won! 🏆' : 'You lost. 😢';
+            case GameStatus.WonByPlayerWhite:
+                return boardOrientation === 'white' ? 'You won! 🏆' : 'You lost. 😢';
+            case GameStatus.Stalemate:
+                return 'Stalemate - no legal moves';
+            case GameStatus.Draw:
+                return 'Game ended in a draw';
+            default:
+                return 'Checking game status...';
+        }
+    }, [gameSession?.status, boardOrientation, sessionId]);
+
+    const gamePlayerMessage = useMemo((): string => {
+        if (boardOrientation === undefined) return '';
+        else if (boardOrientation === 'white') return "You're player white ♔";
+        else return "You're player black ♚";
+    }, [boardOrientation]);
 
     const threeDPieces = useMemo(() => {
         const pieces: {piece: Piece, pieceHeight: number}[] = [
@@ -123,7 +158,7 @@ const OhMyChessBoard = ({networkUrl, accountAddress, sessionId}: Props): ReactNo
             });
             game.undo();
 
-            if (move && isPlayerTurn) {
+            if (move && isPlayerTurn && gameSession?.players.black && gameSession?.players.white) {
                 useMakeChessMoveMutation.mutate({sessionId: sessionId as string, chessMove: {from, to}}, {
                     onSuccess: async() => {
                         game.move({
@@ -158,7 +193,7 @@ const OhMyChessBoard = ({networkUrl, accountAddress, sessionId}: Props): ReactNo
                             color: boardOrientation === 'white' ? '#f0f0f0' : '#333333',
                         }}
                     >
-                        You&apos;re player {boardOrientation === 'white' ? 'white ♔' : 'black ♚'}
+                        { gamePlayerMessage }
                     </div>
                 )}
                 <div
@@ -168,7 +203,10 @@ const OhMyChessBoard = ({networkUrl, accountAddress, sessionId}: Props): ReactNo
                         color: isPlayerTurn ? '#4CAF50' : '#f44336',
                     }}
                 >
-                    {isPlayerTurn === undefined ? null : isPlayerTurn ? 'Your turn 🎲' : "Opponent's turn ⏳"}
+                    {(isPlayerTurn === undefined || gameSession?.status !== GameStatus.Ongoing) ? null : isPlayerTurn ? 'Your turn 🎲' : "Opponent's turn ⏳"}
+                </div>
+                <div style={{fontSize: '1.5rem', fontWeight: 'bold'}}>
+                    {gameStatusMessage}
                 </div>
             </div>
             <Chessboard

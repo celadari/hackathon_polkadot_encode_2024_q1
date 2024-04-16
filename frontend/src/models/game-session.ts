@@ -37,7 +37,8 @@ export interface ChessCell {
 
 export enum GameStatus {
     Ongoing = 'Ongoing',
-    Finished = 'Finished',
+    WonByPlayerBlack = 'WonByPlayerBlack',
+    WonByPlayerWhite = 'WonByPlayerWhite',
     Stalemate = 'Stalemate',
     Draw = 'Draw',
 }

@@ -38,6 +38,7 @@ const VerticalMenuView = ({networkUrl, accountAddress, handleSelectedSessionUuid
     const handleCreateSession = useCallback((createNewSessionArgs: CreateNewSessionArgs): void => {
         useCreateNewSessionMutation.mutate(createNewSessionArgs, {
             onSuccess: async(newCreateSessionId: string): Promise<void> => {
+                console.log(newCreateSessionId);
                 await refetch();
                 handleSelectedSessionUuid(newCreateSessionId);
                 setNewSessionModalOpen(false);
