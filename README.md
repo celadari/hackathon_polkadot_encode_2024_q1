@@ -2,6 +2,9 @@
 
 This project implements a chess game on the Phala Network, utilizing off-chain computations to handle chess moves. This approach significantly enhances efficiency by avoiding on-chain transactions for every player move.
 
+![Frontend Screenshot](./docs/resources/oh_my_chess_frontend_screenshot.png)
+
+
 ![Schema](./docs/resources/oh_my_chess_schema.png)
 
 ## Resources
@@ -49,9 +52,25 @@ Follow these steps to install dependencies and set up your local environment:
 
 5. Deploy the Phat contract on the local network:
     ```bash
-    npx devphase contract deploy -n local -c oh_my_chess -o new -l 0x0000000000000000000000000000000000000000000000000000000000000001
+    cd deploy && npx ts-node deploy_contract.ts --mongo_atlas_url <MONGO_ATLAS_URL> --mongo_atlas_api_key <MONGO_ATLAS_KEY>
     ```
-   Replace `<CLUSTER_ID>` with `0x0000000000000000000000000000000000000000000000000000000000000001`. This command will deploy the Phat contract and return its address, denoted as `<PHAT_CONTRACT_ADDRESS>`.
+   Replace `<MONGO_ATLAS_URL>` and `<MONGO_ATLAS_KEY>` with the right values of your instance.
+
+   This command will deploy the Phat contract and return its address, denoted as `<PHAT_CONTRACT_ADDRESS>`.
+
+
+6. Run frontend in local machine:
+
+   6.1. Populate file `.env` at root level with:
+   ```bash
+   NEXT_PUBLIC_PHAT_CONTRACT_OH_MY_CHESS=<PHAT_CONTRACT_ADDRESS>
+   ```
+   6.2 Run at root level
+   ```bash
+   docker-compose up --build
+   ```
+
+You can now access the frontend at `localhost:3000`
 
 **Important**: Interact with the Phat contract using scripts, as the contract methods require parameters.
 
