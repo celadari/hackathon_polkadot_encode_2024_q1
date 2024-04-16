@@ -93,7 +93,7 @@ const OhMyChessBoard = ({networkUrl, accountAddress, sessionId}: Props): ReactNo
             default:
                 return 'Checking game status...';
         }
-    }, [gameSession?.status, boardOrientation, sessionId]);
+    }, [gameSession, boardOrientation, sessionId]);
 
     const gamePlayerMessage = useMemo((): string => {
         if (boardOrientation === undefined) return '';

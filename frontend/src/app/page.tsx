@@ -5,7 +5,6 @@ import VerticalMenuView from "@/components/VerticalMenuView";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {InjectedAccount} from "@phala/sdk";
 import HorizontalMenu from "@/components/HorizontalMenu";
-import {ReactQueryDevtools} from "@tanstack/react-query-devtools";
 
 const queryClient = new QueryClient();
 
@@ -27,8 +26,6 @@ export default function Home(): React.JSX.Element {
     return (
         <>
           <QueryClientProvider client={queryClient}>
-              <ReactQueryDevtools></ReactQueryDevtools>
-
               <div>
                   <HorizontalMenu handleSelectNetworkUrlAndAccount={handleSelectNetworkUrlAndAccount} />
                   <VerticalMenuView selectedSessionUuid={selectedSessionUuid} handleSelectedSessionUuid={handleSelectedSessionUuid} accountAddress={accountAddress} networkUrl={networkUrl}/>
